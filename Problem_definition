@@ -1,0 +1,44 @@
+Goal: From a coordinate-sorted SAM of uniquely mapped single-end reads, retain only one representative read for each set of PCR duplicates.
+
+Duplicate definition (single-end, with UMIs):
+Two reads are PCR duplicates if they share the same:
+
+reference (RNAME),
+
+strand (derived from SAM FLAG),
+
+5′ genomic coordinate (computed from POS + CIGAR; see below),
+
+UMI (whitelisted; last colon-separated token in QNAME).
+
+Notes & assumptions
+
+Input is sorted by coordinate.
+
+Reads are uniquely mapped (but we still ignore unmapped/secondary/supplementary just in case).
+
+5′ coordinate rule (reference-consuming ops: M, =, X, D, N):
+
+For + strand (FLAG 16 not set): 5′ position = POS (1-based).
+
+For − strand (FLAG 16 set): 5′ position = POS + ref_consumed_len(CIGAR) − 1.
+
+S and H do not consume reference and do not shift the 5′ coordinate on their own; we use the standard definition above.
+
+UMIs: exactly 96 valid sequences (provided as a whitelist).
+
+Extract from QNAME’s trailing field: e.g., NS500451:...:GAACAGGT → GAACAGGT.
+
+If UMI not in whitelist, discard the read.
+
+(Optional) If doing error correction: correct to nearest whitelist UMI at Hamming distance = 1 when unambiguous; otherwise discard.
+
+Memory constraint: Avoid loading the whole file. We stream by reference (chromosome), maintaining an in-memory set of seen keys only for the current reference (and optionally current reference + “windows” of positions if necessary). When RNAME changes (thanks to sort order), we flush state.
+
+Output: A SAM file with:
+
+All original headers copied verbatim.
+
+Body lines filtered so that only one read per (RNAME, strand, five_prime_pos, UMI) remains (first seen, or best by a simple policy).
+
+(Optionally) A duplication summary (counts per chromosome / UMI).

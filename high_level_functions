@@ -1,0 +1,77 @@
+extract_umi_from_qname
+
+Description:
+Return the last colon-delimited token from QNAME. No validation here.
+
+def extract_umi_from_qname(qname: str) -> str
+Returns:
+str — UMI substring.
+
+Tests (examples):
+
+Input: "NS500451:154:HWKTMBGXX:1:11101:15364:1139:GAACAGGT" → "GAACAGGT"
+
+Input: "A:B:C:D:TTTTTTTT" → "TTTTTTTT"
+
+Input: "no_colons_UMI" → "no_colons_UMI" (decide if you want to require at least one colon; if so, fail/None)
+
+umi_in_whitelist
+
+Description:
+Check if UMI is one of the 96 valid UMIs.
+
+def umi_in_whitelist(umi: str, whitelist: set[str]) -> bool
+Returns:
+bool
+
+Tests:
+
+UMI "GAACAGGT", whitelist contains it → True
+
+UMI "INVALIDUM", whitelist doesn’t contain → False
+
+ref_consumed_length_from_cigar
+
+Description:
+Sum lengths of reference-consuming CIGAR operations (M, =, X, D, N). Ignore I, S, H, P.
+
+def ref_consumed_length_from_cigar(cigar: str) -> int
+Returns:
+int — number of reference bases consumed.
+
+Tests:
+
+"50M" → 50
+
+"45M5S" → 45
+
+"10S40M" → 40
+
+"8M2I10M5D5M" → 8 + 0 + 10 + 5 + 5 = 28
+
+"30M100N20M" → 30 + 100 + 20 = 150
+
+compute_5prime_pos
+
+Description:
+Compute the 5′ genomic coordinate (1-based, inclusive) based on POS, CIGAR, and strand.
+
+def compute_5prime_pos(flag: int, pos: int, cigar: str) -> int
+Returns:
+int — 5′ position.
+
+Rules:
+
++ strand: return pos.
+
+− strand: return pos + ref_consumed_length_from_cigar(cigar) − 1.
+
+Tests:
+
+flag=0, pos=1001, cigar="50M" → 1001
+
+flag=16, pos=1050, cigar="50M" → 1099
+
+flag=16, pos=1050, cigar="45M5S" → 1094
+
+flag=0, pos=2000, cigar="10S40M" → 2000

@@ -1,0 +1,56 @@
+INPUTS:
+  - sam_in: path to coordinate-sorted SAM (single-end)
+  - sam_out: path to write deduplicated SAM
+  - umi_whitelist: set of 96 valid UMIs (strings)
+  - error_correction: boolean (default: false)
+
+DEFINITIONS:
+  - ref_consuming_ops = {M, =, X, D, N}
+  - key = (RNAME, strand, five_prime_pos, UMI)
+
+PROCEDURE:
+  open sam_in for reading
+  open sam_out for writing
+
+  current_rname = None
+  seen_keys = empty hash/set
+
+  for each line in sam_in:
+    if line starts with '@':
+      write line to sam_out
+      continue
+
+    parse SAM fields: QNAME, FLAG, RNAME, POS, CIGAR, MAPQ, etc.
+
+    if is_unmapped(FLAG) or is_secondary_or_supp(FLAG):
+      continue  # or optionally write through if guaranteed unique mapping is violated
+
+    if current_rname is None:
+      current_rname = RNAME
+
+    if RNAME != current_rname:
+      # we finished a chromosome; clear memory for previous chrom
+      seen_keys.clear()
+      current_rname = RNAME
+
+    umi = extract_umi_from_qname(QNAME)
+    if not umi_in_whitelist(umi, umi_whitelist):
+      if error_correction:
+        umi = correct_umi_or_none(umi, umi_whitelist)  # returns None if ambiguous or >1 mismatch
+      if umi is None or not umi_in_whitelist(umi, umi_whitelist):
+        continue  # discard read
+
+    strand = '-' if (FLAG bit 0x10 set) else '+'
+    five_prime = compute_5prime_pos(FLAG, POS, CIGAR)  # use ref-consuming ops only
+
+    k = (RNAME, strand, five_prime, umi)
+
+    if k not in seen_keys:
+      write line to sam_out
+      seen_keys.add(k)
+    else:
+      # duplicate; skip
+      continue
+
+  close sam_in
+  close sam_out
